@@ -1,0 +1,207 @@
+name: "Build & Release"
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: ios
+          - os: macos-latest
+            target: macos
+          - os: ubuntu-latest
+            target: android
+          - os: ubuntu-latest
+            target: linux
+          - os: windows-latest
+            target: windows
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set Up Java
+        if: matrix.target == 'android'
+        uses: actions/setup-java@v3.12.0
+        with:
+          distribution: 'oracle'
+          java-version: '17'
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.3'
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Enable Linux Build
+        if: matrix.target == 'linux'
+        run: flutter config --enable-linux-desktop
+
+      - name: Enable Windows Build
+        if: matrix.target == 'windows'
+        run: flutter config --enable-windows-desktop
+
+      - name: Enable macOS Build
+        if: matrix.target == 'macos'
+        run: flutter config --enable-macos-desktop
+
+      - name: Install Linux Dependencies
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libx11-dev pkg-config cmake ninja-build libblkid-dev
+
+      - name: Decode Keystore
+        if: matrix.target == 'android'
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+
+      - name: Create key.properties
+        if: matrix.target == 'android'
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=keystore.jks" >> android/key.properties
+
+      - name: Build APK
+        if: matrix.target == 'android'
+        run: flutter build apk --release
+
+      - name: Build App Bundle
+        if: matrix.target == 'android'
+        run: flutter build appbundle
+
+      - name: Build IPA
+        if: matrix.target == 'ios'
+        run: flutter build ipa --no-codesign
+
+      - name: Build macOS
+        if: matrix.target == 'macos'
+        run: flutter build macos --release
+
+      - name: Build Linux
+        if: matrix.target == 'linux'
+        run: flutter build linux --release
+
+      - name: Build Windows
+        if: matrix.target == 'windows'
+        run: flutter build windows --release
+
+      - name: Compress iOS Build
+        if: matrix.target == 'ios'
+        run: |
+          cd build
+          tar -czf ios_build.tar.gz ios
+
+      - name: Compress macOS Build
+        if: matrix.target == 'macos'
+        run: |
+          cd build
+          tar -czf macos_build.tar.gz macos
+
+      - name: Compress Linux Build
+        if: matrix.target == 'linux'
+        run: |
+          cd build
+          tar -czf linux_build.tar.gz linux
+
+      - name: Compress Windows Build
+        if: matrix.target == 'windows'
+        run: |
+          cd build
+          powershell -Command "Compress-Archive -Path windows -DestinationPath windows_build.zip"
+
+      - name: Upload Artifacts Android
+        if: matrix.target == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload Artifacts iOS
+        if: matrix.target == 'ios'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: build/ios_build.tar.gz
+
+      - name: Upload Artifacts macOS
+        if: matrix.target == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: build/macos_build.tar.gz
+
+      - name: Upload Artifacts Linux
+        if: matrix.target == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: build/linux_build.tar.gz
+
+      - name: Upload Artifacts Windows
+        if: matrix.target == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: build/windows_build.zip
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Extract Version
+        id: extract_version
+        run: |
+          version=$(grep '^version: ' pubspec.yaml | cut -d ' ' -f 2 | tr -d '\r')
+          echo "VERSION=$version" >> $GITHUB_ENV
+
+      - name: Check if Tag Exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
+            echo "TAG_EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "TAG_EXISTS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Modify Tag
+        if: env.TAG_EXISTS == 'true'
+        id: modify_tag
+        run: |
+          new_version="${{ env.VERSION }}-build-${{ github.run_number }}"
+          echo "VERSION=$new_version" >> $GITHUB_ENV
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "android-build/*,ios-build/*,macos-build/*,linux-build/*,windows-build/*"
+          tag: v${{ env.VERSION }}
+          token: ${{ secrets.TOKEN }}
+          allowUpdates: true
