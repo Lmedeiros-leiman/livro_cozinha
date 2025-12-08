@@ -236,5 +236,5 @@ jobs:
         with:
           artifacts: "android-build/*,ios-build/*,macos-build/*,linux-build/*,windows-build/*"
           tag: v${{ env.VERSION }}
-          token: ${{ secrets.TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
