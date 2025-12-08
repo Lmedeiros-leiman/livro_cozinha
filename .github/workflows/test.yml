@@ -10,29 +10,15 @@ on:
       - master
 
 jobs:
-  build:
-    name: Build & Release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            target: ios
-          - os: macos-latest
-            target: macos
-          - os: ubuntu-latest
-            target: android
-          - os: ubuntu-latest
-            target: linux
-          - os: windows-latest
-            target: windows
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
       - name: Set Up Java
-        if: matrix.target == 'android'
         uses: actions/setup-java@v3.12.0
         with:
           distribution: 'oracle'
@@ -47,31 +33,11 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Enable Linux Build
-        if: matrix.target == 'linux'
-        run: flutter config --enable-linux-desktop
-
-      - name: Enable Windows Build
-        if: matrix.target == 'windows'
-        run: flutter config --enable-windows-desktop
-
-      - name: Enable macOS Build
-        if: matrix.target == 'macos'
-        run: flutter config --enable-macos-desktop
-
-      - name: Install Linux Dependencies
-        if: matrix.target == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libx11-dev pkg-config cmake ninja-build libblkid-dev
-
       - name: Decode Keystore
-        if: matrix.target == 'android'
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
 
       - name: Create key.properties
-        if: matrix.target == 'android'
         run: |
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
@@ -79,55 +45,12 @@ jobs:
           echo "storeFile=keystore.jks" >> android/key.properties
 
       - name: Build APK
-        if: matrix.target == 'android'
         run: flutter build apk --release
 
       - name: Build App Bundle
-        if: matrix.target == 'android'
         run: flutter build appbundle
 
-      - name: Build IPA
-        if: matrix.target == 'ios'
-        run: flutter build ipa --no-codesign
-
-      - name: Build macOS
-        if: matrix.target == 'macos'
-        run: flutter build macos --release
-
-      - name: Build Linux
-        if: matrix.target == 'linux'
-        run: flutter build linux --release
-
-      - name: Build Windows
-        if: matrix.target == 'windows'
-        run: flutter build windows --release
-
-      - name: Compress iOS Build
-        if: matrix.target == 'ios'
-        run: |
-          cd build
-          tar -czf ios_build.tar.gz ios
-
-      - name: Compress macOS Build
-        if: matrix.target == 'macos'
-        run: |
-          cd build
-          tar -czf macos_build.tar.gz macos
-
-      - name: Compress Linux Build
-        if: matrix.target == 'linux'
-        run: |
-          cd build
-          tar -czf linux_build.tar.gz linux
-
-      - name: Compress Windows Build
-        if: matrix.target == 'windows'
-        run: |
-          cd build
-          powershell -Command "Compress-Archive -Path windows -DestinationPath windows_build.zip"
-
       - name: Upload Artifacts Android
-        if: matrix.target == 'android'
         uses: actions/upload-artifact@v4
         with:
           name: android-build
@@ -135,29 +58,139 @@ jobs:
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/bundle/release/app-release.aab
 
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.3'
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build IPA
+        run: flutter build ipa --no-codesign
+
+      - name: Compress iOS Build
+        run: |
+          cd build
+          tar -czf ios_build.tar.gz ios
+
       - name: Upload Artifacts iOS
-        if: matrix.target == 'ios'
         uses: actions/upload-artifact@v4
         with:
           name: ios-build
           path: build/ios_build.tar.gz
 
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.3'
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Enable macOS Build
+        run: flutter config --enable-macos-desktop
+
+      - name: Build macOS
+        run: flutter build macos --release
+
+      - name: Compress macOS Build
+        run: |
+          cd build
+          tar -czf macos_build.tar.gz macos
+
       - name: Upload Artifacts macOS
-        if: matrix.target == 'macos'
         uses: actions/upload-artifact@v4
         with:
           name: macos-build
           path: build/macos_build.tar.gz
 
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.3'
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Enable Linux Build
+        run: flutter config --enable-linux-desktop
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libx11-dev pkg-config cmake ninja-build libblkid-dev
+
+      - name: Build Linux
+        run: flutter build linux --release
+
+      - name: Compress Linux Build
+        run: |
+          cd build
+          tar -czf linux_build.tar.gz linux
+
       - name: Upload Artifacts Linux
-        if: matrix.target == 'linux'
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
           path: build/linux_build.tar.gz
 
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.3'
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Enable Windows Build
+        run: flutter config --enable-windows-desktop
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Compress Windows Build
+        run: |
+          cd build
+          powershell -Command "Compress-Archive -Path windows -DestinationPath windows_build.zip"
+
       - name: Upload Artifacts Windows
-        if: matrix.target == 'windows'
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
@@ -165,7 +198,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: build
+    needs: [build-android, build-ios, build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
 
