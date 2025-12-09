@@ -37,9 +37,12 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Echo Key Alias
+        run: echo "${{ secrets.KEY_ALIAS }}"
+
       - name: Decode Keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+
 
       - name: Create key.properties
         run: |
