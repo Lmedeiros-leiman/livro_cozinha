@@ -1,0 +1,44 @@
+name: Build iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build iOS App
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6.0.1
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2.14.0
+        with:
+          flutter-version: '3.38.3'
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Install CocoaPods Dependencies
+        run: |
+          cd ios
+          pod install
+        working-directory: ./ios
+
+      - name: Build iOS App (Release)
+        run: flutter build ios --release --no-codesign
+
+      - name: Archive Release app for Simulator
+        run: |
+          mkdir -p build/ios/iphoneos/
+          cp -r build/ios/Release-iphoneos/Runner.app build/ios/iphoneos/
+
+      - name: Upload iOS App Artifact
+        uses: actions/upload-artifact@v5.0.0
+        with:
+          name: ios-release-app
+          path: build/ios/iphoneos/Runner.app
+
+          

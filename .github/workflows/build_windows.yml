@@ -1,0 +1,52 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows App
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6.0.1
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2.14.0
+        with:
+          flutter-version: '3.38.3'
+          channel: 'stable'
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Windows App (Release)
+        run: flutter build windows --release
+
+      - name: Upload Windows App Artifact (Release Folder)
+        uses: actions/upload-artifact@v5.0.0
+        with:
+          name: windows-release-app
+          path: build/windows/x64/runner/Release/
+
+      - name: Build Windows Installer (.exe)
+        run: flutter pub run msix:create --installer
+
+      - name: Upload Windows Installer (.exe)
+        uses: actions/upload-artifact@v5.0.0
+        with:
+          name: windows-installer-exe
+          path: build/windows/runner/installer/*.exe
+
+      - name: Build Windows Installer (.msix)
+        run: flutter pub run msix:create
+
+      - name: Upload Windows Installer (.msix)
+        uses: actions/upload-artifact@v5.0.0
+        with:
+          name: windows-installer-msix
+          path: build/windows/runner/*.msix
