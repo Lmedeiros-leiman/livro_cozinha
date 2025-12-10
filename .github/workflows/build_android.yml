@@ -5,68 +5,74 @@ on:
     workflow_call:
         secrets:
             KEYSTORE_BASE64:
-                required: false
+                required: true
             KEYSTORE_PASSWORD:
-                required: false
+                required: true
             KEY_PASSWORD:
-                required: false
+                required: true
             KEY_ALIAS:
-                required: false  
+                required: true
 
 jobs:
-  build-android:
-    name: Build Android APK and App Bundle
-    runs-on: ubuntu-latest
+    build-android:
 
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v6.0.1
+        name: Build Android APK and App Bundle
+        runs-on: ubuntu-latest
 
-      - name: Set Up Java
-        uses: actions/setup-java@v5.1.0
-        with:
-          distribution: 'oracle'
-          java-version: '17'
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4
 
-      - name: Set Up Flutter
-        uses: subosito/flutter-action@v2.14.0
-        with:
-          flutter-version: '3.38.3'
-          channel: 'stable'
+            - name: Setup Java
+              uses: actions/setup-java@v1
+              with:
+                java-version: "17.x"
 
-      - name: Install Dependencies
-        run: flutter pub get
+            - name: Setup Flutter
+              uses: subosito/flutter-action@v2.14.0
+              with:
+                flutter-version: 3.38.3
+                channel: stable
 
-      - name: Echo Key Alias
-        run: echo "${{ secrets.KEY_ALIAS }}"
+            - name: Show Flutter Version
+              run: flutter --version
 
-      - name: Decode Keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+            - name: Enable Android Support
+              run: flutter config --enable-android
+
+            - name: Clean Build
+              run: flutter clean
+
+            - name: Install Dependencies
+              run: flutter pub get
+
+            - name: Generate Keystore
+              run: |
+                  echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ./android/ChaveLancamentoAndroid.jks
+
+            - name: Generate keystore.properties
+              run: |
+                  echo "storeFile=../ChaveLancamentoAndroid.jks" > android/keystore.properties
+                  echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/keystore.properties
+                  echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/keystore.properties
+                  echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/keystore.properties
+                  cat keystore.properties
 
 
-      - name: Create key.properties
-        run: |
-          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
-          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
-          echo "storeFile=keystore.jks" >> android/key.properties
+            - name: Build App Bundle
+              run: flutter build appbundle --release
 
-      - name: Build APK
-        run: flutter build apk --release
+            - name: Upload App Bundle Artifact
+              uses: actions/upload-artifact@main
+              with:
+                name: android-app-bundle
+                path: build/app/outputs/bundle/release/app-release.aab
 
-      - name: Build App Bundle
-        run: flutter build appbundle
+            - name: Build APK
+              run: flutter build apk --release
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v5.0.0
-        with:
-          name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload App Bundle
-        uses: actions/upload-artifact@v5.0.0
-        with:
-          name: app-release-aab
-          path: build/app/outputs/bundle/release/app-release.aab
-
-          
+            - name: Upload APK Artifact
+              uses: actions/upload-artifact@main
+              with:
+                name: android-apk
+                path: build/app/outputs/flutter-apk/app-release.apk
