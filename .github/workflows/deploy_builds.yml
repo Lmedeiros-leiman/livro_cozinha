@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build-android
-      - build-ios
+      #- build-ios # TODO:: I have NO idea why this doesnt work. will come back to it LATER.
       - build-macos
       - build-windows
       - build-linux
@@ -116,4 +116,3 @@ jobs:
             # ./ios-artifact/*   # Uncomment if you add iOS artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

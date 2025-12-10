@@ -33,15 +33,6 @@ jobs:
           name: windows-release-app
           path: build/windows/x64/runner/Release/
 
-      - name: Build Windows Installer (.exe)
-        run: flutter pub run msix:create --installer
-
-      - name: Upload Windows Installer (.exe)
-        uses: actions/upload-artifact@v5
-        with:
-          name: windows-installer-exe
-          path: build/windows/runner/installer/*.exe
-
       - name: Build Windows Installer (.msix)
         run: flutter pub run msix:create
 
