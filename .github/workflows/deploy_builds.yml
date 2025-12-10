@@ -15,18 +15,12 @@ jobs:
 
 
   checkout-and-env:
-    name: Checkout and Create .env
+    name: Checkout
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Create .env file from secrets
-        run: |
-          echo "KEYSTORE_BASE64=${{ secrets.KEYSTORE_BASE64 }}" >> .env
-          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> .env
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> .env
-          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> .env
 
   build-macos:
     name: Build macOS
@@ -36,9 +30,9 @@ jobs:
     name: Build Windows
     uses: ./.github/workflows/build_windows.yml
 
-  build-ios:
-    name: Build iOS
-    uses: ./.github/workflows/build_ios.yml
+  #build-ios:
+  #  name: Build iOS
+  #  uses: ./.github/workflows/build_ios.yml
 
   build-linux:
     name: Build Linux
@@ -113,6 +107,5 @@ jobs:
             ./macos-artifact/*
             ./windows-artifact/release/**
             ./windows-artifact/installer/**
-            # ./ios-artifact/*   # Uncomment if you add iOS artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
